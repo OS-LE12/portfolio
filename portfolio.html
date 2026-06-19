@@ -1,0 +1,610 @@
+<!DOCTYPE html>
+<html lang="da">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Portefølje</title>
+<style>
+  :root {
+    --bg:          #0b0f1a;
+    --surface:     #111827;
+    --border:      #1e293b;
+    --muted:       #94a3b8;
+    --text:        #f1f5f9;
+    --accent-saxo: #1d6af5;
+    --accent-nn:   #f97316;
+    --green:       #22c55e;
+    --red:         #ef4444;
+    --warn:        #eab308;
+    --radius:      14px;
+    --mono:        'SF Mono', 'Fira Code', monospace;
+  }
+  * { box-sizing: border-box; margin: 0; padding: 0; }
+  body {
+    background: var(--bg); color: var(--text);
+    font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+    min-height: 100vh; display: flex; flex-direction: column;
+    align-items: center; justify-content: center; padding: 2rem 1rem;
+  }
+  header { text-align: center; margin-bottom: 3rem; }
+  header p { font-size: .8rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: .5rem; }
+  #clock { font-size: .75rem; color: var(--muted); font-family: var(--mono); margin-top: .4rem; }
+
+  #total-section { text-align: center; margin-bottom: 3rem; }
+  #total-label { font-size: .72rem; letter-spacing: .18em; text-transform: uppercase; color: var(--muted); margin-bottom: .6rem; }
+  #total-value { font-family: var(--mono); font-size: clamp(2.8rem,7vw,4.5rem); font-weight: 700; letter-spacing: -.02em; line-height: 1; }
+  #total-change { margin-top: .75rem; font-family: var(--mono); font-size: 1.1rem; font-weight: 500; }
+
+  .pos { color: var(--green); } .neg { color: var(--red); } .neutral { color: var(--muted); }
+
+  .cards { display: grid; grid-template-columns: 1fr 1fr; gap: 1rem; width: 100%; max-width: 640px; margin-bottom: 2rem; }
+  @media (max-width:500px) { .cards { grid-template-columns: 1fr; } }
+
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 1.4rem 1.6rem; }
+  .card-header { display: flex; align-items: center; gap: .6rem; margin-bottom: 1rem; }
+  .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+  .dot-saxo { background: var(--accent-saxo); } .dot-nn { background: var(--accent-nn); }
+  .card-name { font-size: .72rem; letter-spacing: .14em; text-transform: uppercase; color: var(--muted); }
+  .card-status { margin-left: auto; font-size: .65rem; letter-spacing: .1em; text-transform: uppercase; padding: 2px 8px; border-radius: 99px; }
+  .status-connected    { background: #14532d; color: #86efac; }
+  .status-disconnected { background: #1c1917; color: var(--muted); }
+  .status-loading      { background: #1e1b4b; color: #a5b4fc; }
+  .status-refreshing   { background: #1c2a1c; color: #86efac; }
+  .status-error        { background: #450a0a; color: #fca5a5; }
+
+  .card-value { font-family: var(--mono); font-size: 1.7rem; font-weight: 700; letter-spacing: -.01em; line-height: 1; margin-bottom: .35rem; }
+  .card-change { font-family: var(--mono); font-size: .85rem; }
+
+  .token-bar { margin-top: .9rem; height: 3px; border-radius: 2px; background: var(--border); overflow: hidden; }
+  .token-bar-fill { height: 100%; border-radius: 2px; transition: width 1s linear, background .3s; }
+  .token-expiry { font-size: .62rem; color: var(--muted); margin-top: .3rem; font-family: var(--mono); letter-spacing: .04em; }
+
+  .btn-row { display: flex; gap: .6rem; margin-top: 1rem; flex-wrap: wrap; }
+  button { cursor: pointer; border: none; border-radius: 8px; padding: .45rem 1rem; font-size: .78rem; font-family: inherit; font-weight: 500; letter-spacing: .04em; transition: opacity .15s; }
+  button:hover { opacity: .82; }
+  .btn-saxo { background: var(--accent-saxo); color: #fff; }
+  .btn-nn { background: var(--accent-nn); color: #fff; }
+  .btn-refresh { background: var(--border); color: var(--text); }
+  .btn-logout { background: transparent; border: 1px solid var(--border); color: var(--muted); padding: .45rem .8rem; }
+
+  #config-panel { background: #0d1117; border: 1px solid #f97316; border-radius: var(--radius); padding: 1.4rem 1.6rem; width: 100%; max-width: 640px; margin-bottom: 2rem; font-size: .82rem; line-height: 1.7; color: var(--muted); }
+  #config-panel h3 { color: #f97316; font-size: .72rem; letter-spacing: .15em; text-transform: uppercase; margin-bottom: .8rem; }
+  #config-panel code { font-family: var(--mono); font-size: .78rem; background: #1a1a2e; padding: 1px 5px; border-radius: 4px; color: #a5b4fc; }
+  #config-panel .cfg-line { margin-bottom: .4rem; }
+
+  #status-bar { font-size: .7rem; color: var(--muted); text-align: center; margin-bottom: .5rem; font-family: var(--mono); letter-spacing: .04em; }
+  footer { font-size: .7rem; color: var(--muted); text-align: center; margin-top: 1rem; opacity: .5; }
+</style>
+</head>
+<body>
+
+<header>
+  <p>Porteføljeoversigt</p>
+  <div id="clock">—</div>
+</header>
+
+<div id="config-panel" style="display:none">
+  <h3>⚙ Opsætning påkrævet</h3>
+  Åbn <code>portfolio.html</code> i en editor og udfyld disse fire værdier øverst i &lt;script&gt;-blokken:
+  <br><br>
+  <div class="cfg-line"><strong>Saxo Bank</strong> — opret app på <code>developer.saxo</code> → Apps → New App (vælg PKCE + <code>offline_access</code> scope)</div>
+  <div class="cfg-line">→ <code>b302461147954af79580ef7526da04a7</code> og <code>https://brandingspace.dk/api</code></div>
+  <br>
+  <div class="cfg-line"><strong>Nordnet</strong> — ansøg om adgang på <code>developer.nordnet.se</code></div>
+  <div class="cfg-line">→ <code>NN_CLIENT_ID</code> og <code>NN_REDIRECT_URI</code></div>
+  <br>
+  Tokens gemmes lokalt og fornyes automatisk — du forbliver logget ind hele dagen.
+</div>
+
+<div id="total-section">
+  <div id="total-label">Samlet portefølje</div>
+  <div id="total-value" class="neutral">—</div>
+  <div id="total-change" class="neutral">— kr. &nbsp;/&nbsp; — %</div>
+</div>
+
+<div class="cards">
+  <div class="card">
+    <div class="card-header">
+      <div class="dot dot-saxo"></div>
+      <span class="card-name">Saxo Bank</span>
+      <span class="card-status status-disconnected" id="status-saxo">Ikke tilsluttet</span>
+    </div>
+    <div class="card-value neutral" id="val-saxo">—</div>
+    <div class="card-change neutral" id="chg-saxo">— kr. &nbsp;/&nbsp; — %</div>
+    <div class="token-bar" id="bar-saxo" style="display:none">
+      <div class="token-bar-fill" id="bar-saxo-fill" style="width:100%;background:var(--accent-saxo)"></div>
+    </div>
+    <div class="token-expiry" id="exp-saxo" style="display:none"></div>
+    <div class="btn-row" id="btns-saxo">
+      <button class="btn-saxo" onclick="loginSaxo()">Log ind</button>
+    </div>
+  </div>
+  <div class="card">
+    <div class="card-header">
+      <div class="dot dot-nn"></div>
+      <span class="card-name">Nordnet</span>
+      <span class="card-status status-disconnected" id="status-nn">Ikke tilsluttet</span>
+    </div>
+    <div class="card-value neutral" id="val-nn">—</div>
+    <div class="card-change neutral" id="chg-nn">— kr. &nbsp;/&nbsp; — %</div>
+    <div class="token-bar" id="bar-nn" style="display:none">
+      <div class="token-bar-fill" id="bar-nn-fill" style="width:100%;background:var(--accent-nn)"></div>
+    </div>
+    <div class="token-expiry" id="exp-nn" style="display:none"></div>
+    <div class="btn-row" id="btns-nn">
+      <button class="btn-nn" onclick="loginNordnet()">Log ind</button>
+    </div>
+  </div>
+</div>
+
+<div id="status-bar" style="display:none">Næste dataopdatering om <span id="next-refresh">60</span>s</div>
+<footer>Saxo Bank OpenAPI + Nordnet NEXT API · Tokens fornyes automatisk · Kun til personlig brug</footer>
+
+<script>
+// ================================================================
+//  KONFIGURATION — udfyld disse fire værdier
+// ================================================================
+const CONFIG = {
+  saxo: {
+    clientId:    'b302461147954af79580ef7526da04a7',
+    redirectUri: 'https://brandingspace.dk/api',
+    env:         'live',   // 'sim' = test, 'live' = produktion
+  },
+  nordnet: {
+    clientId:    'DIN_NORDNET_CLIENT_ID',
+    redirectUri: 'DIN_NORDNET_REDIRECT_URI',
+  }
+};
+
+// ── Endpoints ────────────────────────────────────────────────────
+const IS_LIVE    = CONFIG.saxo.env === 'live';
+const SAXO_BASE  = IS_LIVE
+  ? 'https://gateway.saxobank.com/openapi'
+  : 'https://gateway.saxobank.com/sim/openapi';
+const SAXO_AUTH  = IS_LIVE
+  ? 'https://live.logonvalidation.net/authorize'
+  : 'https://sim.logonvalidation.net/authorize';
+const SAXO_TOKEN = IS_LIVE
+  ? 'https://live.logonvalidation.net/token'
+  : 'https://sim.logonvalidation.net/token';
+const NN_BASE  = 'https://www.nordnet.dk/api/2';
+const NN_AUTH  = 'https://www.nordnet.dk/oauth2/authorize';
+const NN_TOKEN = 'https://www.nordnet.dk/oauth2/token';
+
+// Forny token 3 minutter før det udløber
+const REFRESH_MARGIN_MS = 3 * 60 * 1000;
+
+// ── State ────────────────────────────────────────────────────────
+const state = {
+  saxo: { accessToken: null, refreshToken: null, expiresAt: 0, issuedAt: 0, value: null, change: null, changePct: null },
+  nn:   { accessToken: null, refreshToken: null, expiresAt: 0, issuedAt: 0, value: null, change: null, changePct: null }
+};
+
+let dataTimer      = null;
+let tokenTimers    = {};
+let countdownVal   = 60;
+let countdownTimer = null;
+
+// ================================================================
+//  STORAGE — obfuskeret localStorage
+// ================================================================
+function obfuscate(str) {
+  return btoa(unescape(encodeURIComponent(str))).split('').reverse().join('');
+}
+function deobfuscate(str) {
+  try { return decodeURIComponent(escape(atob(str.split('').reverse().join('')))); }
+  catch { return null; }
+}
+function saveTokens(bank, d) {
+  localStorage.setItem('pf_' + bank, obfuscate(JSON.stringify({
+    accessToken: d.accessToken, refreshToken: d.refreshToken,
+    expiresAt: d.expiresAt, issuedAt: d.issuedAt
+  })));
+}
+function loadTokens(bank) {
+  const raw = localStorage.getItem('pf_' + bank);
+  if (!raw) return null;
+  try { return JSON.parse(deobfuscate(raw)); } catch { return null; }
+}
+function clearStoredTokens(bank) { localStorage.removeItem('pf_' + bank); }
+
+// ================================================================
+//  PKCE
+// ================================================================
+function randomBase64(len) {
+  const a = new Uint8Array(len); crypto.getRandomValues(a);
+  return btoa(String.fromCharCode(...a)).replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+async function sha256base64(plain) {
+  const hash = await crypto.subtle.digest('SHA-256', new TextEncoder().encode(plain));
+  return btoa(String.fromCharCode(...new Uint8Array(hash)))
+    .replace(/\+/g,'-').replace(/\//g,'_').replace(/=/g,'');
+}
+
+// ================================================================
+//  TOKEN-FORNYELSE (REFRESH GRANT)
+// ================================================================
+async function refreshSaxoToken() {
+  const rt = state.saxo.refreshToken;
+  if (!rt) { clearBank('saxo'); return; }
+  setStatus('saxo','refreshing','Fornyer…');
+  try {
+    const res = await fetch(SAXO_TOKEN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token', refresh_token: rt,
+        client_id: CONFIG.saxo.clientId, redirect_uri: CONFIG.saxo.redirectUri
+      })
+    });
+    if (!res.ok) throw new Error('refresh ' + res.status);
+    applyTokens('saxo', await res.json());
+    scheduleTokenRefresh('saxo');
+    await fetchSaxo();
+  } catch(err) { console.error('Saxo refresh fejl:', err); clearBank('saxo'); }
+}
+
+async function refreshNordnetToken() {
+  const rt = state.nn.refreshToken;
+  if (!rt) { clearBank('nn'); return; }
+  setStatus('nn','refreshing','Fornyer…');
+  try {
+    const res = await fetch(NN_TOKEN, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+      body: new URLSearchParams({
+        grant_type: 'refresh_token', refresh_token: rt,
+        client_id: CONFIG.nordnet.clientId
+      })
+    });
+    if (!res.ok) throw new Error('refresh ' + res.status);
+    applyTokens('nn', await res.json());
+    scheduleTokenRefresh('nn');
+    await fetchNordnet();
+  } catch(err) { console.error('Nordnet refresh fejl:', err); clearBank('nn'); }
+}
+
+// Planlæg proaktiv fornyelse REFRESH_MARGIN_MS før udløb
+function scheduleTokenRefresh(bank) {
+  if (tokenTimers[bank]) clearTimeout(tokenTimers[bank]);
+  const s = state[bank];
+  if (!s.refreshToken || !s.expiresAt) return;
+  const msUntil = s.expiresAt - Date.now() - REFRESH_MARGIN_MS;
+  if (msUntil <= 0) {
+    bank === 'saxo' ? refreshSaxoToken() : refreshNordnetToken();
+    return;
+  }
+  console.log('[' + bank + '] Token fornyes automatisk om ' + Math.round(msUntil/1000) + 's');
+  tokenTimers[bank] = setTimeout(
+    () => bank === 'saxo' ? refreshSaxoToken() : refreshNordnetToken(),
+    msUntil
+  );
+}
+
+// ================================================================
+//  SAXO LOGIN + UDVEKSLING
+// ================================================================
+async function loginSaxo() {
+  const verifier = randomBase64(64);
+  const challenge = await sha256base64(verifier);
+  const nonce = randomBase64(16);
+  sessionStorage.setItem('saxo_verifier', verifier);
+  sessionStorage.setItem('saxo_nonce', nonce);
+  const p = new URLSearchParams({
+    response_type: 'code', client_id: CONFIG.saxo.clientId,
+    redirect_uri: CONFIG.saxo.redirectUri,
+    code_challenge: challenge, code_challenge_method: 'S256',
+    state: 'saxo_' + nonce,
+    scope: 'openid profile offline_access'
+  });
+  window.location.href = SAXO_AUTH + '?' + p;
+}
+
+async function exchangeSaxoCode(code) {
+  const verifier = sessionStorage.getItem('saxo_verifier');
+  const res = await fetch(SAXO_TOKEN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code', code,
+      redirect_uri: CONFIG.saxo.redirectUri,
+      client_id: CONFIG.saxo.clientId, code_verifier: verifier
+    })
+  });
+  if (!res.ok) throw new Error('Saxo kode-udveksling fejlede: ' + res.status);
+  applyTokens('saxo', await res.json());
+  scheduleTokenRefresh('saxo');
+  sessionStorage.removeItem('saxo_verifier');
+  sessionStorage.removeItem('saxo_nonce');
+}
+
+// ================================================================
+//  NORDNET LOGIN + UDVEKSLING
+// ================================================================
+async function loginNordnet() {
+  const verifier = randomBase64(64);
+  const challenge = await sha256base64(verifier);
+  const nonce = randomBase64(16);
+  sessionStorage.setItem('nn_verifier', verifier);
+  sessionStorage.setItem('nn_nonce', nonce);
+  const p = new URLSearchParams({
+    response_type: 'code', client_id: CONFIG.nordnet.clientId,
+    redirect_uri: CONFIG.nordnet.redirectUri,
+    code_challenge: challenge, code_challenge_method: 'S256',
+    state: 'nn_' + nonce,
+    scope: 'read offline_access'
+  });
+  window.location.href = NN_AUTH + '?' + p;
+}
+
+async function exchangeNordnetCode(code) {
+  const verifier = sessionStorage.getItem('nn_verifier');
+  const res = await fetch(NN_TOKEN, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+    body: new URLSearchParams({
+      grant_type: 'authorization_code', code,
+      redirect_uri: CONFIG.nordnet.redirectUri,
+      client_id: CONFIG.nordnet.clientId, code_verifier: verifier
+    })
+  });
+  if (!res.ok) throw new Error('Nordnet kode-udveksling fejlede: ' + res.status);
+  applyTokens('nn', await res.json());
+  scheduleTokenRefresh('nn');
+  sessionStorage.removeItem('nn_verifier');
+  sessionStorage.removeItem('nn_nonce');
+}
+
+// ================================================================
+//  ANVEND TOKEN-DATA
+// ================================================================
+function applyTokens(bank, data) {
+  const issuedAt  = Date.now();
+  const expiresAt = issuedAt + (data.expires_in || 1200) * 1000;
+  state[bank].accessToken  = data.access_token;
+  state[bank].refreshToken = data.refresh_token || state[bank].refreshToken;
+  state[bank].expiresAt    = expiresAt;
+  state[bank].issuedAt     = issuedAt;
+  saveTokens(bank, state[bank]);
+  updateButtons(bank);
+  updateTokenBar(bank);
+}
+
+// ================================================================
+//  DATA-HENTNING: SAXO
+// ================================================================
+async function fetchSaxo() {
+  if (!state.saxo.accessToken) return;
+  setStatus('saxo','loading','Henter…');
+  try {
+    const h = { Authorization: 'Bearer ' + state.saxo.accessToken };
+    const meRes = await fetch(SAXO_BASE + '/port/v1/clients/me', { headers: h });
+    if (meRes.status === 401) { await refreshSaxoToken(); return; }
+    if (!meRes.ok) throw new Error(meRes.status);
+    const { ClientKey } = await meRes.json();
+
+    const accRes = await fetch(SAXO_BASE + '/port/v1/accounts?ClientKey=' + ClientKey, { headers: h });
+    if (!accRes.ok) throw new Error(accRes.status);
+    const { Data: accounts = [] } = await accRes.json();
+
+    let totalValue = 0, totalChange = 0;
+    for (const acc of accounts) {
+      const r = await fetch(
+        SAXO_BASE + '/port/v1/balances?ClientKey=' + ClientKey + '&AccountKey=' + acc.AccountKey,
+        { headers: h }
+      );
+      if (!r.ok) continue;
+      const b = await r.json();
+      totalValue  += b.TotalValue              || 0;
+      totalChange += b.UnrealizedPositionsValue || 0;
+    }
+    const pct = (totalValue - totalChange) > 0
+      ? (totalChange / (totalValue - totalChange)) * 100 : 0;
+    state.saxo.value = totalValue; state.saxo.change = totalChange; state.saxo.changePct = pct;
+    setStatus('saxo','connected','Tilsluttet');
+    updateCard('saxo'); updateTotal();
+  } catch(err) {
+    console.error('Saxo data-fejl:', err);
+    setStatus('saxo','error','Datafejl');
+  }
+}
+
+// ================================================================
+//  DATA-HENTNING: NORDNET
+// ================================================================
+async function fetchNordnet() {
+  if (!state.nn.accessToken) return;
+  setStatus('nn','loading','Henter…');
+  try {
+    const h = { Authorization: 'Bearer ' + state.nn.accessToken, 'Accept-Language': 'da' };
+    const accRes = await fetch(NN_BASE + '/accounts', { headers: h });
+    if (accRes.status === 401) { await refreshNordnetToken(); return; }
+    if (!accRes.ok) throw new Error(accRes.status);
+    const accounts = await accRes.json();
+
+    let totalValue = 0, totalChange = 0;
+    for (const acc of accounts) {
+      const [iR, yR] = await Promise.all([
+        fetch(NN_BASE + '/accounts/' + acc.id + '/info',  { headers: h }),
+        fetch(NN_BASE + '/accounts/' + acc.id + '/yield', { headers: h })
+      ]);
+      if (iR.ok) { const i = await iR.json(); totalValue  += i.portfolio_value?.value || 0; }
+      if (yR.ok) { const y = await yR.json(); totalChange += y.today_return?.value    || 0; }
+    }
+    const pct = (totalValue - totalChange) > 0
+      ? (totalChange / (totalValue - totalChange)) * 100 : 0;
+    state.nn.value = totalValue; state.nn.change = totalChange; state.nn.changePct = pct;
+    setStatus('nn','connected','Tilsluttet');
+    updateCard('nn'); updateTotal();
+  } catch(err) {
+    console.error('Nordnet data-fejl:', err);
+    setStatus('nn','error','Datafejl');
+  }
+}
+
+// ================================================================
+//  UI
+// ================================================================
+function fmt(n) {
+  if (n === null || n === undefined) return '—';
+  return new Intl.NumberFormat('da-DK',{style:'currency',currency:'DKK',minimumFractionDigits:0,maximumFractionDigits:0}).format(n);
+}
+function fmtChange(val, pct) {
+  if (val === null) return '— kr. / — %';
+  const s = val >= 0 ? '+' : '';
+  return s + fmt(val) + ' &nbsp;/&nbsp; ' + s + pct.toFixed(2) + '%';
+}
+function updateCard(bank) {
+  const s = state[bank];
+  const el = document.getElementById('val-' + bank);
+  const chg = document.getElementById('chg-' + bank);
+  el.textContent = fmt(s.value);
+  el.className = 'card-value' + (s.value < 0 ? ' neg' : '');
+  chg.innerHTML = fmtChange(s.change, s.changePct || 0);
+  chg.className = 'card-change ' + (s.change > 0 ? 'pos' : s.change < 0 ? 'neg' : 'neutral');
+}
+function updateTotal() {
+  if (state.saxo.value === null && state.nn.value === null) return;
+  const sv = state.saxo.value || 0, nv = state.nn.value || 0;
+  const sc = state.saxo.change ?? 0, nc = state.nn.change ?? 0;
+  const total = sv + nv, change = sc + nc, base = total - change;
+  const pct = base > 0 ? (change / base) * 100 : 0;
+  document.getElementById('total-value').textContent = fmt(total);
+  document.getElementById('total-value').className = 'neutral';
+  const tc = document.getElementById('total-change');
+  tc.innerHTML = fmtChange(change, pct);
+  tc.className = change > 0 ? 'pos' : change < 0 ? 'neg' : 'neutral';
+}
+function updateTokenBar(bank) {
+  const s = state[bank];
+  const bar = document.getElementById('bar-' + bank);
+  const fill = document.getElementById('bar-' + bank + '-fill');
+  const expEl = document.getElementById('exp-' + bank);
+  if (!s.accessToken || !s.expiresAt) {
+    bar.style.display = 'none'; expEl.style.display = 'none'; return;
+  }
+  bar.style.display = 'block'; expEl.style.display = 'block';
+  const total = s.expiresAt - s.issuedAt;
+  const remaining = Math.max(0, s.expiresAt - Date.now());
+  const pct = (remaining / total) * 100;
+  fill.style.width = pct + '%';
+  fill.style.background = pct > 30
+    ? (bank === 'saxo' ? 'var(--accent-saxo)' : 'var(--accent-nn)')
+    : pct > 10 ? 'var(--warn)' : 'var(--red)';
+  const mins = Math.round(remaining / 60000);
+  expEl.textContent = mins > 60
+    ? 'Token fornyes om ca. ' + Math.round(mins/60) + 't'
+    : mins > 0 ? 'Token fornyes om ' + mins + ' min'
+    : 'Fornyer token…';
+}
+function setStatus(bank, type, label) {
+  const el = document.getElementById('status-' + bank);
+  el.textContent = label; el.className = 'card-status status-' + type;
+}
+function updateButtons(bank) {
+  const row = document.getElementById('btns-' + bank);
+  if (state[bank].accessToken) {
+    row.innerHTML =
+      '<button class="btn-refresh" onclick="fetchAll()">Opdater nu</button>' +
+      '<button class="btn-logout" onclick="logout(\'' + bank + '\')">Log ud</button>';
+  } else {
+    row.innerHTML = bank === 'saxo'
+      ? '<button class="btn-saxo" onclick="loginSaxo()">Log ind</button>'
+      : '<button class="btn-nn" onclick="loginNordnet()">Log ind</button>';
+  }
+}
+function clearBank(bank) {
+  if (tokenTimers[bank]) clearTimeout(tokenTimers[bank]);
+  state[bank] = { accessToken:null, refreshToken:null, expiresAt:0, issuedAt:0, value:null, change:null, changePct:null };
+  clearStoredTokens(bank);
+  setStatus(bank,'disconnected','Ikke tilsluttet');
+  document.getElementById('val-' + bank).textContent = '—';
+  document.getElementById('val-' + bank).className = 'card-value neutral';
+  document.getElementById('chg-' + bank).innerHTML = '— kr. &nbsp;/&nbsp; — %';
+  document.getElementById('chg-' + bank).className = 'card-change neutral';
+  document.getElementById('bar-' + bank).style.display = 'none';
+  document.getElementById('exp-' + bank).style.display = 'none';
+  updateButtons(bank);
+}
+function logout(bank) { clearBank(bank); updateTotal(); }
+function fetchAll() { fetchSaxo(); fetchNordnet(); }
+
+function updateClock() {
+  document.getElementById('clock').textContent =
+    new Date().toLocaleString('da-DK',{weekday:'short',day:'numeric',month:'short',hour:'2-digit',minute:'2-digit',second:'2-digit'});
+  updateTokenBar('saxo');
+  updateTokenBar('nn');
+}
+
+function startCountdown() {
+  countdownVal = 60;
+  if (countdownTimer) clearInterval(countdownTimer);
+  countdownTimer = setInterval(() => {
+    countdownVal = Math.max(0, countdownVal - 1);
+    const el = document.getElementById('next-refresh');
+    if (el) el.textContent = countdownVal;
+  }, 1000);
+}
+function startDataTimer() {
+  if (dataTimer) clearInterval(dataTimer);
+  dataTimer = setInterval(() => {
+    if (state.saxo.accessToken || state.nn.accessToken) { fetchAll(); startCountdown(); }
+  }, 60000);
+  startCountdown();
+}
+function configOk() {
+  return !CONFIG.saxo.clientId.startsWith('DIN_') || !CONFIG.nordnet.clientId.startsWith('DIN_');
+}
+
+// ================================================================
+//  OPSTART
+// ================================================================
+async function init() {
+  setInterval(updateClock, 1000);
+  updateClock();
+
+  if (!configOk()) document.getElementById('config-panel').style.display = 'block';
+
+  // Håndtér OAuth redirect
+  const params = new URLSearchParams(window.location.search);
+  const code = params.get('code');
+  const ostate = params.get('state') || '';
+  if (code) {
+    window.history.replaceState({}, document.title, window.location.pathname);
+    try {
+      if (ostate.startsWith('saxo_')) { await exchangeSaxoCode(code); await fetchSaxo(); }
+      else if (ostate.startsWith('nn_')) { await exchangeNordnetCode(code); await fetchNordnet(); }
+    } catch(err) { console.error('Token-udveksling fejlede:', err); alert('Login fejlede: ' + err.message); }
+  }
+
+  // Genindlæs tokens fra localStorage
+  for (const bank of ['saxo','nn']) {
+    if (state[bank].accessToken) continue;   // allerede sat via code-flow
+    const stored = loadTokens(bank);
+    if (!stored) continue;
+    const now = Date.now();
+    if (stored.accessToken && stored.expiresAt > now + 30000) {
+      // Access token gyldigt
+      Object.assign(state[bank], stored);
+      updateButtons(bank); updateTokenBar(bank);
+      scheduleTokenRefresh(bank);
+      bank === 'saxo' ? await fetchSaxo() : await fetchNordnet();
+    } else if (stored.refreshToken) {
+      // Access token udløbet — brug refresh token
+      state[bank].refreshToken = stored.refreshToken;
+      state[bank].expiresAt    = stored.expiresAt;
+      state[bank].issuedAt     = stored.issuedAt;
+      console.log('[' + bank + '] Access token udløbet — fornyer via refresh token');
+      bank === 'saxo' ? await refreshSaxoToken() : await refreshNordnetToken();
+    }
+  }
+
+  const anyConnected = state.saxo.accessToken || state.nn.accessToken;
+  document.getElementById('status-bar').style.display = anyConnected ? 'block' : 'none';
+  startDataTimer();
+}
+
+init();
+</script>
+</body>
+</html>
