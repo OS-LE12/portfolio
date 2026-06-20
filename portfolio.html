@@ -88,7 +88,7 @@
   Åbn <code>portfolio.html</code> i en editor og udfyld disse fire værdier øverst i &lt;script&gt;-blokken:
   <br><br>
   <div class="cfg-line"><strong>Saxo Bank</strong> — opret app på <code>developer.saxo</code> → Apps → New App (vælg PKCE + <code>offline_access</code> scope)</div>
-  <div class="cfg-line">→ <code>b302461147954af79580ef7526da04a7</code> og <code>https://os-le12.github.io/portfolio/portfolio.html</code></div>
+  <div class="cfg-line">→ <code>b302461147954af79580ef7526da04a7</code> og <code>https://brandingspace.dk/portfolio.html</code></div>
   <br>
   <div class="cfg-line"><strong>Nordnet</strong> — ansøg om adgang på <code>developer.nordnet.se</code></div>
   <div class="cfg-line">→ <code>NN_CLIENT_ID</code> og <code>NN_REDIRECT_URI</code></div>
@@ -147,8 +147,8 @@
 const CONFIG = {
   saxo: {
     clientId:    'b302461147954af79580ef7526da04a7',
-    redirectUri: 'https://os-le12.github.io/portfolio/portfolio.html',
-    env:         'live',   // 'sim' = test, 'live' = produktion
+    redirectUri: 'https://brandingspace.dk/portfolio.html',
+    env:         'sim',   // 'sim' = test, 'live' = produktion
   },
   nordnet: {
     clientId:    'DIN_NORDNET_CLIENT_ID',
@@ -164,12 +164,14 @@ const SAXO_BASE  = IS_LIVE
 const SAXO_AUTH  = IS_LIVE
   ? 'https://live.logonvalidation.net/authorize'
   : 'https://sim.logonvalidation.net/authorize';
+// Token-endpoints går via proxy.php for at undgå CORS
+const PROXY_BASE  = 'https://brandingspace.DK/proxy.php';
 const SAXO_TOKEN = IS_LIVE
-  ? 'https://live.logonvalidation.net/token'
-  : 'https://sim.logonvalidation.net/token';
+  ? PROXY_BASE + '?target=saxo_live'
+  : PROXY_BASE + '?target=saxo_sim';
 const NN_BASE  = 'https://www.nordnet.dk/api/2';
 const NN_AUTH  = 'https://www.nordnet.dk/oauth2/authorize';
-const NN_TOKEN = 'https://www.nordnet.dk/oauth2/token';
+const NN_TOKEN  = PROXY_BASE + '?target=nordnet';
 
 // Forny token 3 minutter før det udløber
 const REFRESH_MARGIN_MS = 3 * 60 * 1000;
